@@ -4,8 +4,8 @@
 // @version      1.2
 // @description  Czeka na pojawienie się  klika raz i kończy działanie (lekki dla CPU).
 // @match        https://key-drop.com/pl/daily-case/
-// @updateURL   https://raw.githubusercontent.com/Hardelan/dailyfree/main/dailyfree
-// @downloadURL https://raw.githubusercontent.com/Hardelan/dailyfree/main/dailyfree
+// @updateURL   https://raw.githubusercontent.com/Hardelan/dailyfree/main/dailyfree.user.js
+// @downloadURL https://raw.githubusercontent.com/Hardelan/dailyfree/main/dailyfree.user.js
 // @run-at       document-start
 // @grant        none
 // ==/UserScript==
