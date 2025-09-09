@@ -1,0 +1,128 @@
+// ==UserScript==
+// @name         KeyDrop DailyCase Auto-Click (PL) – observer & one-shot
+// @namespace    https://key-drop.com
+// @version      1.1
+// @description  Czeka na pojawienie się  klika raz i kończy działanie (lekki dla CPU).
+// @match        https://key-drop.com/pl/daily-case/
+// @run-at       document-start
+// @grant        none
+// ==/UserScript==
+
+(function () {
+  'use strict';
+
+  // ——— Pomocnicze ———
+  const isVisible = (el) => {
+    if (!el) return false;
+    const rect = el.getBoundingClientRect();
+    const style = window.getComputedStyle(el);
+    return (
+      rect.width > 0 &&
+      rect.height > 0 &&
+      style.visibility !== 'hidden' &&
+      style.display !== 'none'
+    );
+  };
+
+  // Przeszuka DOM + otwarte shadowRooty (na wszelki wypadek)
+  const queryAllDeep = (selector, root = document) => {
+    const out = Array.from(root.querySelectorAll(selector));
+    const treeWalker = document.createTreeWalker(root, NodeFilter.SHOW_ELEMENT);
+    let node;
+    while ((node = treeWalker.nextNode())) {
+      if (node.shadowRoot) {
+        out.push(...queryAllDeep(selector, node.shadowRoot));
+      }
+    }
+    return out;
+  };
+
+  const cleanupOverlays = () => {
+    try {
+      document.querySelectorAll('[role="dialog"], [role="alertdialog"]').forEach(el => el.remove());
+      const special = document.querySelector('div[data-testid="special_case_modal"]');
+      if (special) special.remove();
+    } catch {}
+  };
+
+  let done = false;
+  let observer = null;
+
+  const clickSafely = (el) => {
+    try { el.scrollIntoView({ behavior: 'instant', block: 'center' }); } catch {}
+    // małe, losowe opóźnienie
+    const jitter = 200 + Math.floor(Math.random() * 500);
+    setTimeout(() => {
+      try {
+        el.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
+        el.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+        el.click();
+        el.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
+        el.dispatchEvent(new PointerEvent('pointerup', { bubbles: true }));
+      } catch {
+        try { el.click(); } catch {}
+      }
+      // kończymy działanie
+      try { observer && observer.disconnect(); } catch {}
+      done = true;
+      return;
+    }, jitter);
+  };
+
+  const tryFindAndClick = () => {
+    if (done) return;
+    // Szukaj dowolnego elementu z data-testid="daily-case-level-card"
+    const candidates = queryAllDeep('[data-testid="daily-case-card"]')
+      .filter(isVisible);
+
+    if (candidates.length > 0) {
+      cleanupOverlays();
+      clickSafely(candidates[0]);
+    }
+  };
+
+  const start = () => {
+    if (done) return;
+
+    // 1) Spróbuj od razu (gdyby już był w DOM)
+    tryFindAndClick();
+    if (done) return;
+
+    // 2) Obserwuj pojawianie się elementu (reakcja natychmiast po renderze)
+    observer = new MutationObserver((mutList) => {
+      if (done) return;
+      for (const m of mutList) {
+        if (m.addedNodes && m.addedNodes.length) {
+          // szybka, tania weryfikacja
+          tryFindAndClick();
+          if (done) break;
+        }
+      }
+    });
+
+    try {
+      observer.observe(document.documentElement, { childList: true, subtree: true });
+    } catch {}
+
+    // 3) Lekki fallback: co 1s sprawdź jeszcze raz (gdyby coś umknęło observerowi)
+    const poll = setInterval(() => {
+      if (done) { clearInterval(poll); return; }
+      tryFindAndClick();
+      if (done) clearInterval(poll);
+    }, 1000);
+
+    // 4) Opcjonalny bezpiecznik czasu (~19 s) – żeby nie wisieć w nieskończoność.
+    setTimeout(() => {
+      if (!done) {
+        try { observer && observer.disconnect(); } catch {}
+      }
+    }, 19_000);
+  };
+
+  // Uruchom jak najszybciej, ale po dostępności <body>
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', start, { once: true });
+  } else {
+    start();
+  }
+})();
