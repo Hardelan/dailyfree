@@ -1,130 +1,101 @@
 // ==UserScript==
-// @name         KeyDrop DailyCase Auto-Click (PL) – observer & one-shot
+// @name         KeyDrop DailyCase Auto-Click (PL) - uproszczony
 // @namespace    https://key-drop.com
-// @version      1.2
-// @description  Czeka na pojawienie się  klika raz i kończy działanie (lekki dla CPU).
-// @match        https://key-drop.com/pl/daily-case/
-// @updateURL   https://raw.githubusercontent.com/Hardelan/dailyfree/main/dailyfree.user.js
-// @downloadURL https://raw.githubusercontent.com/Hardelan/dailyfree/main/dailyfree.user.js
-// @run-at       document-start
+// @version      1.4
+// @description  Automatycznie klika pierwszy przycisk daily-case-level-card i kończy działanie.
+// @match        https://key-drop.com/pl/daily-case/level/0
+// @match        https://key-drop.com/pl/daily-case/level/0/
+// @run-at       document-idle
 // @grant        none
 // ==/UserScript==
 
-(function () {
+(async function () {
   'use strict';
 
-  // ——— Pomocnicze ———
-  const isVisible = (el) => {
-    if (!el) return false;
-    const rect = el.getBoundingClientRect();
-    const style = window.getComputedStyle(el);
-    return (
-      rect.width > 0 &&
-      rect.height > 0 &&
-      style.visibility !== 'hidden' &&
-      style.display !== 'none'
-    );
-  };
+  /************* SPRZĄTANIE UI *************/
+  function cleanupUI() {
+    // Twój oryginalny modal
+    const specialCaseModal = document.querySelector('div[data-testid="special_case_modal"]');
+    if (specialCaseModal) specialCaseModal.remove();
 
-  // Przeszuka DOM + otwarte shadowRooty (na wszelki wypadek)
-  const queryAllDeep = (selector, root = document) => {
-    const out = Array.from(root.querySelectorAll(selector));
-    const treeWalker = document.createTreeWalker(root, NodeFilter.SHOW_ELEMENT);
-    let node;
-    while ((node = treeWalker.nextNode())) {
-      if (node.shadowRoot) {
-        out.push(...queryAllDeep(selector, node.shadowRoot));
-      }
-    }
-    return out;
-  };
+    // Kilka częstych nakładek, które mogą blokować kliknięcie
+    const selectorsToRemove = [
+      '[data-testid="modal_overlay"]',
+      '[data-testid="global_modal"]',
+      '[data-testid="special_case_overlay"]',
+      '.ReactModal__Overlay',
+      '.modal-backdrop',
+      '.cdk-overlay-container .cdk-overlay-backdrop' // angularowe
+    ];
 
-  const cleanupOverlays = () => {
-    try {
-      document.querySelectorAll('[role="dialog"], [role="alertdialog"]').forEach(el => el.remove());
-      const special = document.querySelector('div[data-testid="special_case_modal"]');
-      if (special) special.remove();
-    } catch {}
-  };
-
-  let done = false;
-  let observer = null;
-
-  const clickSafely = (el) => {
-    try { el.scrollIntoView({ behavior: 'instant', block: 'center' }); } catch {}
-    // małe, losowe opóźnienie
-    const jitter = 200 + Math.floor(Math.random() * 500);
-    setTimeout(() => {
-      try {
-        el.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
-        el.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
-        el.click();
-        el.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
-        el.dispatchEvent(new PointerEvent('pointerup', { bubbles: true }));
-      } catch {
-        try { el.click(); } catch {}
-      }
-      // kończymy działanie
-      try { observer && observer.disconnect(); } catch {}
-      done = true;
-      return;
-    }, jitter);
-  };
-
-  const tryFindAndClick = () => {
-    if (done) return;
-    // Szukaj dowolnego elementu z data-testid="daily-case-level-card"
-    const candidates = queryAllDeep('[data-testid="daily-case-card"]')
-      .filter(isVisible);
-
-    if (candidates.length > 0) {
-      cleanupOverlays();
-      clickSafely(candidates[0]);
-    }
-  };
-
-  const start = () => {
-    if (done) return;
-
-    // 1) Spróbuj od razu (gdyby już był w DOM)
-    tryFindAndClick();
-    if (done) return;
-
-    // 2) Obserwuj pojawianie się elementu (reakcja natychmiast po renderze)
-    observer = new MutationObserver((mutList) => {
-      if (done) return;
-      for (const m of mutList) {
-        if (m.addedNodes && m.addedNodes.length) {
-          // szybka, tania weryfikacja
-          tryFindAndClick();
-          if (done) break;
-        }
-      }
+    selectorsToRemove.forEach(sel => {
+      document.querySelectorAll(sel).forEach(el => {
+        try { el.remove(); } catch {}
+      });
     });
-
-    try {
-      observer.observe(document.documentElement, { childList: true, subtree: true });
-    } catch {}
-
-    // 3) Lekki fallback: co 1s sprawdź jeszcze raz (gdyby coś umknęło observerowi)
-    const poll = setInterval(() => {
-      if (done) { clearInterval(poll); return; }
-      tryFindAndClick();
-      if (done) clearInterval(poll);
-    }, 1000);
-
-    // 4) Opcjonalny bezpiecznik czasu (~19 s) – żeby nie wisieć w nieskończoność.
-    setTimeout(() => {
-      if (!done) {
-        try { observer && observer.disconnect(); } catch {}
-      }
-    }, 19_000);
-  };
-
-  // Uruchom jak najszybciej, ale po dostępności <body>
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', start, { once: true });
-  } else {
-    start();
   }
-})();
+
+  let mutationTimeout = null;
+  const observer = new MutationObserver(() => {
+    if (mutationTimeout) return;
+    mutationTimeout = setTimeout(() => {
+      cleanupUI();
+      mutationTimeout = null;
+    }, 300);
+  });
+
+  observer.observe(document.body, { childList: true, subtree: true });
+  cleanupUI();
+
+  /************* POMOCNICZE *************/
+  const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+
+  function isDisabled(el) {
+    if (!el) return true;
+    const aria = el.getAttribute('aria-disabled');
+    return el.disabled === true || aria === 'true' || el.classList.contains('disabled');
+  }
+
+  /************* SZUKANIE I KLIK PRZYCISKU *************/
+  const MAX_WAIT_MS = 60_000; // maksymalnie 60s czekania
+  const start = Date.now();
+  let targetBtn = null;
+
+  while (!targetBtn && (Date.now() - start) < MAX_WAIT_MS) {
+    cleanupUI();
+    const found = document.querySelector('button[data-testid="daily-case-page-lvl-open-btn"]');
+    if (found) targetBtn = found;
+    if (!targetBtn) await sleep(500);
+  }
+
+  if (!targetBtn) {
+    observer.disconnect();
+    return; // nie znaleziono przycisku
+  }
+
+  // Jeśli przycisk istnieje, ale jest chwilowo nieaktywny – poczekaj aż się odblokuje
+  const enableStart = Date.now();
+  while (isDisabled(targetBtn) && (Date.now() - enableStart) < 15_000) {
+    await sleep(300);
+  }
+
+  // Scroll do przycisku + małe losowe opóźnienie dla „naturalności”
+  try { targetBtn.scrollIntoView({ behavior: 'instant', block: 'center' }); } catch {}
+  await sleep(400 + Math.floor(Math.random() * 600));
+
+  // Ostateczne sprzątnięcie potencjalnych overlayów tuż przed kliknięciem
+  cleanupUI();
+
+  // Kliknięcie (z próbą „ręcznej” symulacji, jeśli .click() nie zadziała)
+  try {
+    targetBtn.click();
+  } catch {
+    try {
+      const evt = new MouseEvent('click', { bubbles: true, cancelable: true, view: window });
+      targetBtn.dispatchEvent(evt);
+    } catch {}
+  }
+
+  // Sprzątamy i kończymy
+  observer.disconnect();
+  cleanupUI();
