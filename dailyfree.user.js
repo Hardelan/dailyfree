@@ -1,13 +1,13 @@
 // ==UserScript==
 // @name         KeyDrop DailyCase Auto-Click (PL) - uproszczony
 // @namespace    https://key-drop.com
-// @version      1.4
+// @version      1.6
 // @description  Automatycznie klika pierwszy przycisk daily-case-level-card i kończy działanie.
-// @match        https://key-drop.com/pl/daily-case/level/0
-// @match        https://key-drop.com/pl/daily-case/level/0/
+// @match        https://key-drop.com/pl/daily-case/*
 // @run-at       document-idle
 // @grant        none
 // ==/UserScript==
+
 
 (async function () {
   'use strict';
@@ -23,8 +23,8 @@
       '[data-testid="modal_overlay"]',
       '[data-testid="global_modal"]',
       '[data-testid="special_case_overlay"]',
-      '.ReactModal__Overlay',
-      '.modal-backdrop',
+      '.ReactModal__Overlay',           // typowy overlay react-modal
+      '.modal-backdrop',                // bootstrapowe backdropy
       '.cdk-overlay-container .cdk-overlay-backdrop' // angularowe
     ];
 
@@ -99,3 +99,4 @@
   // Sprzątamy i kończymy
   observer.disconnect();
   cleanupUI();
+})();
