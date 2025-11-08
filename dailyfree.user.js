@@ -1,13 +1,14 @@
 // ==UserScript==
 // @name         KeyDrop DailyCase Auto-Click (PL) - uproszczony
 // @namespace    https://key-drop.com
-// @version      1.6
+// @version      1.7
 // @description  Automatycznie klika pierwszy przycisk daily-case-level-card i kończy działanie.
 // @match        https://key-drop.com/pl/daily-case/*
+// @updateURL    https://raw.githubusercontent.com/Hardelan/dailyfree/main/dailyfree.user.js
+// @downloadURL  https://raw.githubusercontent.com/Hardelan/dailyfree/main/dailyfree.user.js
 // @run-at       document-idle
 // @grant        none
 // ==/UserScript==
-
 
 (async function () {
   'use strict';
